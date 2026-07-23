@@ -19,4 +19,245 @@
         .action-btn { background: var(--primary); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         
         .box { background: #f0f0f0; padding: 12px; border-radius: 6px; border: 1px dashed #999; word-break: break-all; font-family: monospace; margin: 10px 0; }
-        input, textarea, select { width: 100%; p
+        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        .admin-section { margin-top: 30px; border-top: 2px solid #eee; padding-top: 20px; }
+        .q-list { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top:10px; }
+        .q-list td { border: 1px solid #ddd; padding: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="role-badge" class="badge"></div>
+    <h1>〇✕単語帳</h1>
+
+    <!-- 1. ロック/読込画面 -->
+    <div id="lock-view" class="hidden">
+        <div id="file-import-area">
+            <h3>📥 問題ファイルを読み込む</h3>
+            <p style="font-size: 0.8rem;">作成者から送られた問題ファイル（.json）を選択してください。</p>
+            <input type="file" id="file-input" accept=".json" onchange="handleFileSelect(event)">
+        </div>
+
+        <div id="auth-area" class="hidden" style="margin-top:20px; background:#fffbe6; padding:15px; border-radius:12px; border:1px solid #ffe58f;">
+            <h3>🔒 承認が必要です</h3>
+            <p style="font-size: 0.8rem;">以下のIDを作成者に送り、承認キーをもらってください。</p>
+            <div class="box" id="my-request-id"></div>
+            <input type="text" id="input-auth-key" placeholder="承認キーを入力">
+            <button class="action-btn" onclick="unlockData()">承認してスタート</button>
+        </div>
+    </div>
+
+    <!-- 2. メインメニュー -->
+    <div id="content-view">
+        <div id="mode-selection">
+            <button class="action-btn" onclick="startQuiz('all')">全問スタート</button>
+            <button class="action-btn" style="background:#666" onclick="startQuiz('wrong')">間違えた問題のみ復習</button>
+            <button class="action-btn" style="background:#e67e22" onclick="startQuiz('flag')">🚩チェックのみ復習</button>
+            
+            <p style="text-align:center; font-size:0.7rem; color:#999; margin-top:40px;">--- 別の問題集を読み込む ---</p>
+            <button class="action-btn" style="background:#aaa;" onclick="showImport()">別のファイルを選択する</button>
+        </div>
+
+        <!-- クイズ画面 -->
+        <div id="quiz-area" class="hidden">
+            <div id="quiz-playing">
+                <div id="progress" style="text-align:center; font-size:0.8rem; color:#888;"></div>
+                <div class="quiz-card">
+                    <div id="q-display" style="font-size:1.2rem; font-weight:bold; white-space:pre-wrap;"></div>
+                    <button id="flag-btn" style="border:none; background:none; cursor:pointer; font-size:1.5rem; margin-top:10px;" onclick="toggleFlag()">🚩</button>
+                </div>
+                <div id="ans-btns" class="btn-group">
+                    <button class="btn-circle btn-maru" onclick="checkAns(true)">〇</button>
+                    <button class="btn-circle btn-batsu" onclick="checkAns(false)">✕</button>
+                </div>
+                <div id="result-area" class="hidden">
+                    <div id="result-msg" style="text-align:center; padding:10px; font-weight:bold; border-radius:8px;"></div>
+                    <div id="expl-display" style="padding:15px; background:#f0f0f0; border-radius:8px; margin:10px 0; font-size:0.9rem;"></div>
+                    <button class="action-btn" onclick="nextQ()">次へ</button>
+                </div>
+            </div>
+            <div id="summary-area" class="hidden" style="text-align:center;">
+                <h2 style="color:#888;">RESULT</h2>
+                <div id="final-score" style="font-size:4rem; font-weight:bold; color:var(--primary);"></div>
+                <p id="score-details" style="font-size:1.2rem; margin-bottom:20px;"></p>
+                <button class="action-btn" onclick="location.reload()">メニューに戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 管理画面 -->
+    <div id="admin-view" class="admin-section hidden">
+        <div style="background:#e8f4fd; padding:15px; border-radius:10px; border:1px solid #b3d7ff; margin-bottom:20px;">
+            <h4 style="margin:0 0 5px 0;">🔑 承認キーの発行</h4>
+            <input type="text" id="target-request-id" placeholder="相手のリクエストID">
+            <button class="action-btn" style="background:#27ae60" onclick="generateApprovalKey()">承認キーを発行</button>
+            <div id="generated-key-display" class="box hidden" style="background:#fff;"></div>
+        </div>
+
+        <div style="border:1px solid #ddd; padding:15px; border-radius:10px; background:#fafafa;">
+            <h4 style="margin:0 0 5px 0;">📤 共有用ファイルの作成</h4>
+            <p style="font-size:0.7rem; color:#666;">問題数に関わらず確実に共有できます。保存したファイルを相手に送ってください。</p>
+            <button class="action-btn" style="background:#555" onclick="exportToFile()">問題をファイルで保存する</button>
+        </div>
+        
+        <h4>問題の追加</h4>
+        <textarea id="in-q" placeholder="問題文" rows="2"></textarea>
+        <select id="in-a"><option value="true">正答：〇</option><option value="false">正答：✕</option></select>
+        <textarea id="in-e" placeholder="解説文" rows="2"></textarea>
+        <button class="action-btn" onclick="addQ()">保存して追加</button>
+        <table class="q-list"><tbody id="q-list-body"></tbody></table>
+    </div>
+</div>
+
+<script>
+    let master = []; let queue = []; let cursor = 0; let corrects = 0;
+    let isOwner = true; let currentQuizId = "local"; let sharedData = null;
+    const getAuthHash = (id) => btoa(id + "SECURE").substring(0, 8).toUpperCase();
+
+    window.onload = () => {
+        const savedViewer = localStorage.getItem('viewer_quiz_data');
+        if (savedViewer) {
+            isOwner = false; sharedData = JSON.parse(savedViewer);
+            currentQuizId = sharedData.id;
+            setupViewerMode();
+        } else {
+            const savedOwner = localStorage.getItem('owner_data');
+            if (savedOwner) master = JSON.parse(savedOwner);
+            setupOwnerMode();
+        }
+    };
+
+    function setupOwnerMode() {
+        document.getElementById('role-badge').innerText = "OWNER";
+        document.getElementById('role-badge').style.background = "var(--owner)";
+        document.getElementById('admin-view').classList.remove('hidden');
+        updateList();
+    }
+
+    function setupViewerMode() {
+        document.getElementById('role-badge').innerText = "VIEWER";
+        document.getElementById('role-badge').style.background = "var(--viewer)";
+        document.getElementById('admin-view').remove(); 
+        let myReqId = localStorage.getItem('req_id_' + currentQuizId) || ("REQ-" + Math.floor(Math.random() * 100000));
+        localStorage.setItem('req_id_' + currentQuizId, myReqId);
+        document.getElementById('my-request-id').innerText = myReqId;
+
+        if (localStorage.getItem('auth_' + currentQuizId) === getAuthHash(myReqId)) {
+            master = sharedData.questions;
+            const prog = JSON.parse(localStorage.getItem('prog_' + currentQuizId) || "{}");
+            master.forEach(q => { if(prog[q.id]){ q.flagged = prog[q.id].f; q.lastWrong = prog[q.id].w; } });
+            document.getElementById('lock-view').classList.add('hidden');
+        } else {
+            document.getElementById('content-view').classList.add('hidden');
+            document.getElementById('lock-view').classList.remove('hidden');
+            document.getElementById('auth-area').classList.remove('hidden');
+        }
+    }
+
+    function showImport() {
+        localStorage.removeItem('viewer_quiz_data');
+        location.reload();
+    }
+
+    // ファイル処理
+    function exportToFile() {
+        if (master.length === 0) return alert("問題がありません");
+        const data = JSON.stringify({ id: Date.now(), questions: master });
+        const blob = new Blob([data], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'quiz_data.json';
+        a.click();
+    }
+
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if (confirm(data.questions.length + "問を読み込みますか？")) {
+                    localStorage.setItem('viewer_quiz_data', JSON.stringify(data));
+                    location.reload();
+                }
+            } catch (err) { alert("正しいファイルではありません"); }
+        };
+        reader.readAsText(file);
+    }
+
+    // 承認・クイズ・その他
+    function unlockData() {
+        const key = document.getElementById('input-auth-key').value.trim().toUpperCase();
+        if (key === getAuthHash(document.getElementById('my-request-id').innerText)) {
+            localStorage.setItem('auth_' + currentQuizId, key); location.reload();
+        } else { alert("キーが違います"); }
+    }
+    function generateApprovalKey() {
+        const tid = document.getElementById('target-request-id').value.trim().toUpperCase();
+        if (tid) {
+            const d = document.getElementById('generated-key-display');
+            d.innerText = "承認キー: " + getAuthHash(tid); d.classList.remove('hidden');
+        }
+    }
+    function startQuiz(mode) {
+        if (mode === 'all') queue = [...master];
+        else if (mode === 'wrong') queue = master.filter(m => m.lastWrong);
+        else if (mode === 'flag') queue = master.filter(m => m.flagged);
+        if (queue.length === 0) return alert("対象がありません");
+        queue.sort(() => Math.random() - 0.5); cursor = 0; corrects = 0;
+        document.getElementById('mode-selection').classList.add('hidden');
+        document.getElementById('quiz-area').classList.remove('hidden');
+        showQ();
+    }
+    function showQ() {
+        const q = queue[cursor];
+        document.getElementById('progress').innerText = `${cursor+1} / ${queue.length}`;
+        document.getElementById('q-display').innerText = q.q;
+        document.getElementById('flag-btn').style.filter = q.flagged ? "grayscale(0)" : "grayscale(1)";
+        document.getElementById('ans-btns').classList.remove('hidden');
+        document.getElementById('result-area').classList.add('hidden');
+    }
+    function checkAns(ans) {
+        const q = queue[cursor]; const isC = (ans === q.a); if (isC) corrects++;
+        const m = master.find(mq => mq.id === q.id); if (m) m.lastWrong = !isC;
+        save();
+        document.getElementById('result-msg').innerText = isC ? "正解！" : "不正解...";
+        document.getElementById('result-msg').style.background = isC ? "#ffe6e6" : "#e6edff";
+        document.getElementById('expl-display').innerText = "【解説】\n" + q.e;
+        document.getElementById('ans-btns').classList.add('hidden');
+        document.getElementById('result-area').classList.remove('hidden');
+    }
+    function nextQ() { cursor++; if (cursor < queue.length) showQ(); else showSum(); }
+    function showSum() {
+        document.getElementById('quiz-playing').classList.add('hidden');
+        document.getElementById('summary-area').classList.remove('hidden');
+        document.getElementById('final-score').innerText = Math.round(corrects/queue.length*100) + "%";
+        document.getElementById('score-details').innerText = `${queue.length}問中 ${corrects}問正解`;
+    }
+    function toggleFlag() {
+        const q = queue[cursor]; const m = master.find(mq => mq.id === q.id);
+        if (m) { m.flagged = !m.flagged; document.getElementById('flag-btn').style.filter = m.flagged ? "grayscale(0)" : "grayscale(1)"; save(); }
+    }
+    function save() {
+        if (isOwner) localStorage.setItem('owner_data', JSON.stringify(master));
+        else {
+            const prog = {}; master.forEach(q => { prog[q.id] = { f: q.flagged, w: q.lastWrong }; });
+            localStorage.setItem('prog_' + currentQuizId, JSON.stringify(prog));
+        }
+    }
+    function updateList() {
+        const b = document.getElementById('q-list-body'); b.innerHTML = "";
+        master.forEach(m => { b.innerHTML += `<tr><td>${m.q.substring(0,10)}..</td><td><button onclick="del(${m.id})">削除</button></td></tr>`; });
+    }
+    function addQ() {
+        const q = document.getElementById('in-q').value.trim(); if (!q) return;
+        master.push({ id: Date.now(), q, a: document.getElementById('in-a').value==='true', e: document.getElementById('in-e').value, flagged: false, lastWrong: false });
+        save(); updateList(); document.getElementById('in-q').value = ""; document.getElementById('in-e').value = "";
+    }
+    function del(id) { master = master.filter(m => m.id !== id); save(); updateList(); }
+</script>
+
+</body>
+</html>
