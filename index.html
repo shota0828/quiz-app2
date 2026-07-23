@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>承認制 〇✕単語帳 プロ</title>
+    <title>データコード対応 〇✕単語帳</title>
     <style>
         :root { --primary: #4a90e2; --bg: #f5f7f9; --owner: #27ae60; --viewer: #7f8c8d; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
@@ -11,14 +11,14 @@
         .hidden { display: none !important; }
         .badge { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 4px; color: white; font-size: 0.7rem; font-weight: bold; }
         
-        /* UI */
+        /* UIパーツ */
         .quiz-card { border: 2px solid #eee; border-radius: 12px; padding: 20px; min-height: 120px; margin-bottom: 20px; text-align: center; background: #fff; position: relative; }
         .btn-group { display: flex; gap: 15px; justify-content: center; }
         .btn-circle { width: 80px; height: 80px; border-radius: 50%; border: none; font-size: 2rem; cursor: pointer; color: white; transition: 0.2s; }
         .btn-maru { background: #ff4d4d; } .btn-batsu { background: #4d79ff; }
         .action-btn { background: var(--primary); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         
-        .box { background: #f0f0f0; padding: 12px; border-radius: 6px; border: 1px dashed #999; word-break: break-all; font-family: monospace; margin: 10px 0; }
+        .box { background: #f0f0f0; padding: 12px; border-radius: 6px; border: 1px dashed #999; word-break: break-all; font-family: monospace; margin: 10px 0; font-size: 0.8rem; }
         input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
         .admin-section { margin-top: 30px; border-top: 2px solid #eee; padding-top: 20px; }
         .q-list { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top:10px; }
@@ -31,15 +31,20 @@
     <div id="role-badge" class="badge"></div>
     <h1>〇✕単語帳</h1>
 
-    <!-- 1. ロック/読込画面 -->
-    <div id="lock-view" class="hidden">
-        <div id="file-import-area">
-            <h3>📥 問題ファイルを読み込む</h3>
-            <p style="font-size: 0.8rem;">作成者から送られた問題ファイル（.json）を選択してください。</p>
-            <input type="file" id="file-input" accept=".json" onchange="handleFileSelect(event)">
+    <!-- 1. データインポート画面 -->
+    <div id="import-view" class="hidden">
+        <div style="background:#e8f4fd; padding:15px; border-radius:12px; border:1px solid #b3d7ff;">
+            <h3>📥 データコードの読み取り</h3>
+            <p style="font-size: 0.8rem;">作成者から届いたコードを貼り付けてください。</p>
+            <textarea id="input-data-code" rows="6" placeholder="ここにデータコードを貼り付け"></textarea>
+            <button class="action-btn" onclick="processImport()">データを読み込む</button>
+            <button class="action-btn" style="background:#ccc" onclick="toggleImport(false)">キャンセル</button>
         </div>
+    </div>
 
-        <div id="auth-area" class="hidden" style="margin-top:20px; background:#fffbe6; padding:15px; border-radius:12px; border:1px solid #ffe58f;">
+    <!-- 2. 承認待ち画面 -->
+    <div id="lock-view" class="hidden">
+        <div style="background:#fffbe6; border:2px solid #ffe58f; padding:20px; border-radius:12px; text-align:center;">
             <h3>🔒 承認が必要です</h3>
             <p style="font-size: 0.8rem;">以下のIDを作成者に送り、承認キーをもらってください。</p>
             <div class="box" id="my-request-id"></div>
@@ -48,18 +53,17 @@
         </div>
     </div>
 
-    <!-- 2. メインメニュー -->
+    <!-- 3. メインメニュー -->
     <div id="content-view">
         <div id="mode-selection">
             <button class="action-btn" onclick="startQuiz('all')">全問スタート</button>
             <button class="action-btn" style="background:#666" onclick="startQuiz('wrong')">間違えた問題のみ復習</button>
             <button class="action-btn" style="background:#e67e22" onclick="startQuiz('flag')">🚩チェックのみ復習</button>
             
-            <p style="text-align:center; font-size:0.7rem; color:#999; margin-top:40px;">--- 別の問題集を読み込む ---</p>
-            <button class="action-btn" style="background:#aaa;" onclick="showImport()">別のファイルを選択する</button>
+            <p style="text-align:center; font-size:0.7rem; color:#999; margin-top:40px;">--- 共有された問題を読み込む ---</p>
+            <button class="action-btn" style="background:#27ae60;" onclick="toggleImport(true)">＋ 他の人からのデータを追加</button>
         </div>
 
-        <!-- クイズ画面 -->
         <div id="quiz-area" class="hidden">
             <div id="quiz-playing">
                 <div id="progress" style="text-align:center; font-size:0.8rem; color:#888;"></div>
@@ -86,19 +90,19 @@
         </div>
     </div>
 
-    <!-- 3. 管理画面 -->
+    <!-- 4. 管理画面 -->
     <div id="admin-view" class="admin-section hidden">
         <div style="background:#e8f4fd; padding:15px; border-radius:10px; border:1px solid #b3d7ff; margin-bottom:20px;">
             <h4 style="margin:0 0 5px 0;">🔑 承認キーの発行</h4>
-            <input type="text" id="target-request-id" placeholder="相手のリクエストID">
+            <input type="text" id="target-request-id" placeholder="相手のリクエストIDを入力">
             <button class="action-btn" style="background:#27ae60" onclick="generateApprovalKey()">承認キーを発行</button>
             <div id="generated-key-display" class="box hidden" style="background:#fff;"></div>
         </div>
 
         <div style="border:1px solid #ddd; padding:15px; border-radius:10px; background:#fafafa;">
-            <h4 style="margin:0 0 5px 0;">📤 共有用ファイルの作成</h4>
-            <p style="font-size:0.7rem; color:#666;">問題数に関わらず確実に共有できます。保存したファイルを相手に送ってください。</p>
-            <button class="action-btn" style="background:#555" onclick="exportToFile()">問題をファイルで保存する</button>
+            <h4 style="margin:0 0 5px 0;">📤 共有用データコードの発行</h4>
+            <p style="font-size:0.7rem; color:#666;">これをコピーして相手に送ってください。問題数に関わらず確実に共有できます。</p>
+            <button class="action-btn" style="background:#555" onclick="exportToCode()">データコードをコピーする</button>
         </div>
         
         <h4>問題の追加</h4>
@@ -111,6 +115,21 @@
 </div>
 
 <script>
+    // --- 圧縮エンジン ---
+    async function compress(obj) {
+        const uint8 = new TextEncoder().encode(JSON.stringify(obj));
+        const stream = new Blob([uint8]).stream().pipeThrough(new CompressionStream('deflate'));
+        return btoa(String.fromCharCode(...new Uint8Array(await new Response(stream).arrayBuffer())));
+    }
+    async function decompress(base64) {
+        try {
+            const str = atob(base64);
+            const uint8 = new Uint8Array(str.split('').map(c => c.charCodeAt(0)));
+            const stream = new Blob([uint8]).stream().pipeThrough(new DecompressionStream('deflate'));
+            return JSON.parse(await new Response(stream).text());
+        } catch (e) { return null; }
+    }
+
     let master = []; let queue = []; let cursor = 0; let corrects = 0;
     let isOwner = true; let currentQuizId = "local"; let sharedData = null;
     const getAuthHash = (id) => btoa(id + "SECURE").substring(0, 8).toUpperCase();
@@ -144,50 +163,37 @@
         document.getElementById('my-request-id').innerText = myReqId;
 
         if (localStorage.getItem('auth_' + currentQuizId) === getAuthHash(myReqId)) {
-            master = sharedData.questions;
+            master = sharedContent?.questions || sharedData.questions;
             const prog = JSON.parse(localStorage.getItem('prog_' + currentQuizId) || "{}");
             master.forEach(q => { if(prog[q.id]){ q.flagged = prog[q.id].f; q.lastWrong = prog[q.id].w; } });
             document.getElementById('lock-view').classList.add('hidden');
         } else {
             document.getElementById('content-view').classList.add('hidden');
             document.getElementById('lock-view').classList.remove('hidden');
-            document.getElementById('auth-area').classList.remove('hidden');
         }
     }
 
-    function showImport() {
-        localStorage.removeItem('viewer_quiz_data');
-        location.reload();
+    function toggleImport(show) { document.getElementById('import-view').classList.toggle('hidden', !show); }
+
+    async function processImport() {
+        const code = document.getElementById('input-data-code').value.trim();
+        if (!code) return;
+        const decoded = await decompress(code);
+        if (decoded) {
+            if (confirm(decoded.questions.length + "問の問題を読み込みますか？")) {
+                localStorage.setItem('viewer_quiz_data', JSON.stringify(decoded));
+                location.reload();
+            }
+        } else { alert("正しいデータコードではありません。"); }
     }
 
-    // ファイル処理
-    function exportToFile() {
+    async function exportToCode() {
         if (master.length === 0) return alert("問題がありません");
-        const data = JSON.stringify({ id: Date.now(), questions: master });
-        const blob = new Blob([data], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'quiz_data.json';
-        a.click();
+        const code = await compress({ id: Date.now(), questions: master });
+        navigator.clipboard.writeText(code).then(() => alert("データコードをコピーしました！相手に送ってください。"));
     }
 
-    function handleFileSelect(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                const data = JSON.parse(event.target.result);
-                if (confirm(data.questions.length + "問を読み込みますか？")) {
-                    localStorage.setItem('viewer_quiz_data', JSON.stringify(data));
-                    location.reload();
-                }
-            } catch (err) { alert("正しいファイルではありません"); }
-        };
-        reader.readAsText(file);
-    }
-
-    // 承認・クイズ・その他
+    // --- その他基本機能 ---
     function unlockData() {
         const key = document.getElementById('input-auth-key').value.trim().toUpperCase();
         if (key === getAuthHash(document.getElementById('my-request-id').innerText)) {
